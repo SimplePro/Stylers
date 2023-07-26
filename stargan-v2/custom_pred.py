@@ -1,6 +1,8 @@
 from core.checkpoint import CheckpointIO
 
 from torch import nn
+from torchvision.utils import make_grid
+
 from core.model import Generator, MappingNetwork, StyleEncoder, Discriminator, FAN
 
 import copy
@@ -11,6 +13,8 @@ import torch
 import torchvision.transforms as TF
 
 from PIL import Image
+
+from preprocessing import Preprocessing
 
 img_size = 256
 style_dim = 64
@@ -38,16 +42,40 @@ ckptios.load(100000)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-y_ref = 0 # forehead0: 0, forehead1: 1
-# y_ref = torch.tensor([y_ref], dtype=torch.bool).to(device)
+y_ref = 1 # forehead0: 0, forehead1: 1
 
-x_ref = TF.ToTensor()(Image.open("")).unsqueeze(0).to(device)
+src_path = "../data/augmentation_data/forehead/valid/0/80000.jpg"
+ref_path = "../data/augmentation_data/forehead/valid/1/80001.jpg"
+
+transform = TF.Compose([
+        TF.Resize((256, 256)),
+        TF.ToTensor(),
+        TF.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+])
+
+preprocessing = Preprocessing(device="cuda")
+shifted_ref_img = preprocessing.preprocess_(src_path=src_path, ref_path=ref_path)
+
+import matplotlib.pyplot as plt
+
+plt.imshow(shifted_ref_img)
+plt.show()
+
+# x_ref = transform(Image.open(ref_path)).unsqueeze(0).to(device)
+x_ref = TF.ToTensor()(Image.fromarray(shifted_ref_img)).unsqueeze(0).to(device)
 
 s_ref = nets_ema.style_encoder(x_ref, y_ref)
 
-x_src = TF.ToTensor()(Image.open("")).unsqueeze(0).to(device)
+x_src = transform(Image.open(src_path)).unsqueeze(0).to(device)
 
+def denormalize(x):
+    out = (x + 1) / 2
+    return out.clamp_(0, 1)
+        
 masks = nets_ema.fan.get_heatmap(x_src)
-fake = nets_ema.generator(x_src, s_ref, masks=masks)
+fake = denormalize(nets_ema.generator(x_src, s_ref, masks=masks))
+fake_img = TF.ToPILImage()(fake.cpu().detach().squeeze(0))
 
+print(fake)
 print(fake.shape)
+fake_img.save("./test2.png")
