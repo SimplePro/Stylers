@@ -45,7 +45,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 y_ref = 1 # forehead0: 0, forehead1: 1
 
 src_path = "../data/augmentation_data/forehead/valid/0/80000.jpg"
-ref_path = "../data/augmentation_data/forehead/valid/1/80001.jpg"
+ref_path = "../data/augmentation_data/forehead/valid/1/80005.jpg"
 
 transform = TF.Compose([
         TF.Resize((256, 256)),
@@ -54,15 +54,15 @@ transform = TF.Compose([
 ])
 
 preprocessing = Preprocessing(device="cuda")
-shifted_ref_img = preprocessing.preprocess_(src_path=src_path, ref_path=ref_path)
+preprocessed_ref = preprocessing.preprocess_(src_path=src_path, ref_path=ref_path)
 
 import matplotlib.pyplot as plt
 
-plt.imshow(shifted_ref_img)
+plt.imshow(preprocessed_ref)
 plt.show()
 
-# x_ref = transform(Image.open(ref_path)).unsqueeze(0).to(device)
-x_ref = TF.ToTensor()(Image.fromarray(shifted_ref_img)).unsqueeze(0).to(device)
+x_ref = transform(Image.open(ref_path)).unsqueeze(0).to(device)
+# x_ref = TF.ToTensor()(Image.fromarray(preprocessed_ref)).unsqueeze(0).to(device)
 
 s_ref = nets_ema.style_encoder(x_ref, y_ref)
 
@@ -71,11 +71,11 @@ x_src = transform(Image.open(src_path)).unsqueeze(0).to(device)
 def denormalize(x):
     out = (x + 1) / 2
     return out.clamp_(0, 1)
-        
+
 masks = nets_ema.fan.get_heatmap(x_src)
 fake = denormalize(nets_ema.generator(x_src, s_ref, masks=masks))
 fake_img = TF.ToPILImage()(fake.cpu().detach().squeeze(0))
 
 print(fake)
 print(fake.shape)
-fake_img.save("./test2.png")
+fake_img.save("./test1.png")
