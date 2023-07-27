@@ -282,7 +282,7 @@ class StyleEncoder(nn.Module):
     def forward(self, x, y):
         
         mask = pred_unet(x)
-        x = x * mask
+        x = x * (mask + (1 - mask) * 0.3)
         # TF.to_pil_image(((x[0]+1) / 2).clamp_(0, 1)).save('./x*mask.png')
 
         h = self.shared(x)
