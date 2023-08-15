@@ -23,8 +23,16 @@ def pred_unet(x):
     mask = unet(x)
     return mask
 
-original_path = "./jungwoon/mirror.png"
-transformed_path = "./jungwoon/mirror_test.png"
+expr = 5
+expr_dir = f"./test_expr{expr}"
+original_paths = ["./v_0.png", "./v_1.png", "./jungwoon/ai_profile.png", "./jungwoon/in_the_car.png", "./jungwoon/mirror.png"]
+transformed_paths = [f"{expr_dir}/v_0_test.png", f"{expr_dir}/v_1_test.png", f"{expr_dir}/jungwoon/ai_profile_test.png", f"{expr_dir}/jungwoon/in_the_car_test.png", f"{expr_dir}/jungwoon/mirror_test.png"]
+save_paths = [f"{expr_dir}/corrected_face_v_0_test.gif", f"{expr_dir}/corrected_face_v_1_test.gif", f"{expr_dir}/jungwoon/corrected_face_ai_profile.gif", f"{expr_dir}/jungwoon/corrected_face_in_the_car.gif", f"{expr_dir}/jungwoon/corrected_face_mirror.gif"]
+
+idx = 4
+original_path = original_paths[idx]
+transformed_path = transformed_paths[idx]
+save_path = save_paths[idx]
 
 original_img = TF.to_tensor(Image.open(original_path).resize((256, 256)).convert("RGB")).to("cuda").unsqueeze(0)
 transformed_img = TF.to_tensor(Image.open(transformed_path).resize((256, 256)).convert("RGB")).to("cuda").unsqueeze(0)
@@ -46,6 +54,7 @@ imgs = []
 interpolated_mask = (original_mask + transformed_mask).clamp_(0, 1).cuda().squeeze(0)
 
 def interpolate_img(original_img, transformed_img, interpolated_mask):
+    # interpolated_img = original_img * (1-interpolated_mask) + interpolated_mask * transformed_img
     interpolated_img = original_img * (1-interpolated_mask) + interpolated_mask * transformed_img
     return interpolated_img
 
@@ -81,10 +90,13 @@ for i in range(256):
             gaussian_matrix_dict[(i, j)] = get_gaussian_dist(i, j, 256).to("cuda")
             weight_dict[(i, j)] = transformed_img[:, :, i, j] / (torch.sum(transformed_img * gaussian_matrix_dict[(i, j)].reshape(1, 1, 256, 256).repeat(1, 3, 1, 1)))
 
+# skin_color = torch.sum(original_img * get_gaussian_dist(128, 128, 256).unsqueeze(0).to("cuda"), dim=(2, 3)).reshape(-1)
+# skin_gaussian_matrix = get_gaussian_dist(128, 128, 256).unsqueeze(0).to("cuda")
+
 interpolated_img = interpolated_img.squeeze(0)
 
 alpha = 0.01
-for k in range(100):
+for k in range(50):
 
     with torch.no_grad():
         imgs.append(transformed_img.clamp_(0, 1).detach().cpu().squeeze(0).clamp_(0, 1))
@@ -98,18 +110,37 @@ for k in range(100):
         
         for i in range(256):
             for j in range(256):
-                transformed_img.grad[:, :, i, j] = (alpha * transformed_img.grad[:, :, i, j] + (1-alpha)*mean_grad)
+                if interpolated_mask[:, i, j] >= 0.7:
+                    transformed_img.grad[:, :, i, j] = mean_grad * (1-alpha)
+
+                else:
+                    transformed_img.grad[:, :, i, j] = (alpha * transformed_img.grad[:, :, i, j] + (1-alpha)*mean_grad)
 
     
     optimizer.step()
     scheduler.step()
 
-    with torch.no_grad():
-        for i in range(256):
-            for j in range(256):
-                if interpolated_mask[:, i, j] >= 0.7:
-                    transformed_img[:, :, i, j] = weight_dict[(i, j)] * (torch.sum(transformed_img * gaussian_matrix_dict[(i, j)].reshape(1, 1, 256, 256).repeat(1, 3, 1, 1)))
+    # with torch.no_grad():
+    #     for i in range(256):
+    #         for j in range(256):
+    #             if interpolated_mask[:, i, j] >= 0.7:
+    #                 # if transformed_mask[:, :, i, j] < 0.7:
+    #                 transformed_img[:, :, i, j] = weight_dict[(i, j)] * (torch.sum(transformed_img * gaussian_matrix_dict[(i, j)].reshape(1, 1, 256, 256).repeat(1, 3, 1, 1)))
 
     print(k, round(loss.item(), 4))
 
-make_gif(imgs, save_path="./jungwoon/corrected_face_mirror.gif")
+# deleted_mask = (original_mask - transformed_mask).clamp_(0, 1)
+# mean_ = torch.mean(transformed_img * deleted_mask, dim=(2, 3)).reshape(-1) - skin_color
+# # mean_ = torch.mean(transformed_img[0][interpolated_mask >= 0.7]) - skin_color
+# with torch.no_grad():
+#     for i in range(256):
+#         for j in range(256):
+#             if deleted_mask[:, :, i, j] >= 0.7:
+#                 transformed_img[:, :, i, j] -= mean_
+#                 transformed_img[:, :, i, j] = transformed_img[:, :, i, j].clamp_(0, 1)
+        
+#         imgs.append(transformed_img.clamp_(0, 1).detach().cpu().squeeze(0).clamp_(0, 1))
+
+# make_gif(imgs, save_path="./test_expr7/jungwoon/corrected_face_ai_profile.gif")
+make_gif(imgs, save_path=save_path)
+print(save_path)

@@ -48,20 +48,17 @@ y_ref = 1 # forehead0: 0, forehead1: 1
 
 # src_path = "../data/augmentation_data/forehead/valid/0/80000.jpg"
 # src_path = "/home/kdhsimplepro/Pictures/Screenshots/kdh_face.png"
-src_path = "./V.png"
-ref_path = "../data/augmentation_data/forehead/valid/1/80003.jpg"
+src_path = "./v_1.png"
+# src_path = "./jungwoon/mirror.png"
+ref_paths = ["../data/male_female_augmentation_data/forehead/valid/0/80028.jpg", "../data/male_female_augmentation_data/forehead/valid/1/80169.jpg"]
+# ref_path = "../data/male_female_augmentation_data/forehead/valid/0/80028.jpg"
+ref_path = ref_paths[y_ref]
 
 transform = TF.Compose([
         TF.Resize((256, 256)),
         TF.ToTensor(),
         TF.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
 ])
-
-preprocessing = Preprocessing(device="cuda")
-preprocessed_ref = preprocessing.preprocess_(src_path=src_path, ref_path=ref_path)
-
-plt.imshow(preprocessed_ref)
-plt.show()
 
 x_ref = transform(Image.open(ref_path)).unsqueeze(0).to(device)
 # x_ref = TF.ToTensor()(Image.fromarray(preprocessed_ref)).unsqueeze(0).to(device)
@@ -79,7 +76,7 @@ def denormalize(x):
 fake = denormalize(nets_ema.generator(x_src, s_ref, masks=None))
 fake_img = TF.ToPILImage()(fake.cpu().detach().squeeze(0))
 
-print(fake)
-print(fake.shape)
-fake_img.save("./v_test.png")
+# print(fake)
+# print(fake.shape)
+fake_img.save("./test_expr5/v_1_test.png")
 # fake_img.show()
